@@ -8,9 +8,11 @@ class DropBoxController {
         this.progressBarEl = this.snackModalEl.querySelector('.mc-progress-bar-fg');
         this.nameFileEl = this.snackModalEl.querySelector('.filename');
         this.timeLeftEl = this.snackModalEl.querySelector('.timeleft');
+        this.listFilesE1 = document.querySelector('#list-of-files-and-directories');
 
         this.connectFirebase();
         this.initEvents();
+        this.readFiles();
     };
 
     connectFirebase() {
@@ -37,13 +39,43 @@ class DropBoxController {
 
         this.inputFilesEl.addEventListener('change', event => {
 
-            this.uploadTask(event.target.files);
+            this.btnSendFileEl.disabled = true;
+
+            this.uploadTask(event.target.files).then(responses => {
+
+                responses.forEach(resp => {
+
+                    this.getFirebaseRef().push().set(resp.files['input-file']);
+
+                });
+
+                this.uploadComplete();
+
+            }).catch(err => {
+
+                this.uploadComplete();
+                console.log(err);
+
+            });
 
             this.modalShow();
 
-            this.inputFilesEl.value = '';
-
         });
+
+    };
+
+    uploadComplete() {
+
+        this.modalShow(false);
+        this.inputFilesEl.value = '';
+        this.btnSendFileEl.disabled = false;
+
+    }
+
+    getFirebaseRef() {
+
+        return firebase.database().ref('files');
+
     };
 
     modalShow(show = true) {
@@ -64,8 +96,6 @@ class DropBoxController {
 
                 ajax.onload = event => {
 
-                    this.modalShow(false);
-
                     try {
 
                         resolve(JSON.parse(ajax.responseText));
@@ -78,8 +108,6 @@ class DropBoxController {
                 };
 
                 ajax.onerror = event => {
-
-                    this.modalShow(false);
 
                     reject(event);
 
@@ -158,7 +186,7 @@ class DropBoxController {
                 `;                
                 break;
 
-            case application/pdf:
+            case 'application/pdf':
                 return `
                 <svg version="1.1" id="Camada_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="160px" height="160px" viewBox="0 0 160 160" enable-background="new 0 0 160 160" xml:space="preserve">
                     <filter height="102%" width="101.4%" id="mc-content-unknown-large-a" filterUnits="objectBoundingBox" y="-.5%" x="-.7%">
@@ -312,12 +340,37 @@ class DropBoxController {
     /**
      * Show the files list dynamically 
      **/
-    getFileView() {
-        return 
-            `<li>
-                ${this.getFileIconView(file)}
-                <div class="name text-center">${file.name}</div>
-            </li>
+    getFileView(file, key) {
+
+        let li = document.createElement('li');
+
+        li.dataset.key = key;
+
+        li.innerHTML = `
+              ${this.getFileIconView(file)}
+            <div class="name text-center">${file.name}</div>
             `
+        return li; 
+            
+    }
+
+    /**
+     * Listener for Firebase change
+     **/
+    readFiles() {
+
+        this.getFirebaseRef().on('value', snapshot => {
+
+            this.listFilesE1.innerHTML = '';
+
+            snapshot.forEach(snapshotItem => {
+
+                let key  = snapshotItem.key;
+                let data = snapshotItem.val();
+
+                this.listFilesE1.appendChild(this.getFileView(data, key));
+
+            })
+        })
     }
 };
